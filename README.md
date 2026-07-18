@@ -47,7 +47,7 @@ docker compose -f docker/docker-compose.yaml up -d
 ./scripts/verify-fpk.sh
 ```
 
-构建脚本会自动下载飞牛官方 `fnpack 1.2.3`，并在 `release/` 目录生成 `cloudlink-finder-1.0.0.fpk`。在飞牛应用中心选择“手动安装”，上传该文件即可；安装后通过桌面的“网盘搜索神器”图标或 `http://飞牛IP:8899` 访问。
+构建脚本会自动下载飞牛官方 `fnpack 1.2.3`，并在 `release/` 目录生成带版本号的 `cloudlink-finder-*.fpk`。FPK 使用显式公共镜像地址，以规避部分 fnOS 版本中 `docker.fnnas.com` 返回 `401 Unauthorized` 的问题。在飞牛应用中心选择“手动安装”，上传该文件即可；安装后通过桌面的“网盘搜索神器”图标或 `http://飞牛IP:8899` 访问。
 
 ## 技术栈
 

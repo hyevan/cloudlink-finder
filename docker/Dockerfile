@@ -1,5 +1,10 @@
+# 显式指定公共镜像地址，避免 fnOS 将 docker.io 重定向到需要认证的
+# docker.fnnas.com 后出现 401 Unauthorized。构建时仍可通过 --build-arg 覆盖。
+ARG NODE_IMAGE=docker.1ms.run/library/node:20-alpine
+ARG PYTHON_IMAGE=docker.1ms.run/library/python:3.12-slim
+
 # ==================== 第一阶段：构建前端 ====================
-FROM node:20-alpine AS frontend-builder
+FROM ${NODE_IMAGE} AS frontend-builder
 
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
@@ -9,7 +14,7 @@ RUN npm run build
 
 
 # ==================== 第二阶段：最终运行镜像 ====================
-FROM python:3.12-slim
+FROM ${PYTHON_IMAGE}
 
 # 安装 Nginx 和 Supervisor
 RUN apt-get update && \

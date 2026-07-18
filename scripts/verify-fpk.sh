@@ -3,7 +3,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FPK_FILE="${1:-$ROOT_DIR/release/cloudlink-finder-1.0.0.fpk}"
+VERSION="$(awk -F '=' '$1 ~ /^[[:space:]]*version[[:space:]]*$/ {value=$2; gsub(/^[[:space:]]+|[[:space:]]+$/, "", value); print value; exit}' "$ROOT_DIR/fpk/manifest")"
+FPK_FILE="${1:-$ROOT_DIR/release/cloudlink-finder-${VERSION}.fpk}"
 
 if [[ ! -f "$FPK_FILE" ]]; then
   echo "FPK 文件不存在：$FPK_FILE" >&2

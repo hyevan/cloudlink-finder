@@ -21,6 +21,7 @@ npm-debug.log*
 # Generated FPK artifacts
 build/
 release/*.fpk
+release/**/*.fpk
 
 # IDE / OS
 .DS_Store
