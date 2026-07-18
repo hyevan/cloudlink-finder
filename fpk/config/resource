@@ -6,5 +6,15 @@
                 "path": "docker"
             }
         ]
+    },
+    "data-share": {
+        "shares": [
+            {
+                "name": "third-pan-search"
+            },
+            {
+                "name": "third-pan-search/data"
+            }
+        ]
     }
 }

@@ -38,6 +38,17 @@ docker compose -f docker/docker-compose.yaml up -d
 
 访问 http://localhost:8899
 
+### 飞牛 fnOS 安装包
+
+在 macOS 或 Linux 上执行：
+
+```bash
+./scripts/build-fpk.sh
+./scripts/verify-fpk.sh
+```
+
+构建脚本会自动下载飞牛官方 `fnpack 1.2.3`，并在 `release/` 目录生成 `cloudlink-finder-1.0.0.fpk`。在飞牛应用中心选择“手动安装”，上传该文件即可；安装后通过桌面的“网盘搜索神器”图标或 `http://飞牛IP:8899` 访问。
+
 ## 技术栈
 
 | 层级 | 技术 |

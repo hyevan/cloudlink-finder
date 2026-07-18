@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# 飞牛在安装后调用；不在此处重复执行 docker compose。
+exit 0

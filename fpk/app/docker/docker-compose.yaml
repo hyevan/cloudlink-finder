@@ -1,0 +1,19 @@
+services:
+  pan-search:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pan-search
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8899}:80"
+    volumes:
+      - /var/apps/third-pan-search/shares/third-pan-search/data:/app/data
+    environment:
+      TZ: Asia/Shanghai
+      PANSEARCH_DATA_DIR: /app/data
+      PANSEARCH_CACHE_TTL: "300"
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
