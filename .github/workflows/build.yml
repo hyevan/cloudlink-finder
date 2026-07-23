@@ -34,3 +34,21 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ghcr.io/${{ github.repository }}:latest
+
+      - name: Make package public
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X PATCH \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -d '{"visibility":"public"}' \
+              "https://api.github.com/users/${{ github.actor }}/packages/container/cloudlink-finder/visibility")
+            echo "attempt $i -> HTTP $code"
+            if [ "$code" = "204" ] || [ "$code" = "200" ]; then
+              echo "package set to public"; break
+            fi
+            sleep 12
+          done
