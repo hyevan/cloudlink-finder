@@ -7,20 +7,22 @@ jobs:
   setpublic:
     runs-on: ubuntu-latest
     steps:
-      - name: Set GHCR package public
+      - name: List + set public via REST
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          for i in 1 2 3 4 5 6; do
-            Q='{"query":"query{repository(owner:\"hyevan\",name:\"cloudlink-finder\"){packages(first:20){nodes{id name}}}}"}'
-            RESP=$(curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" -d "$Q" https://api.github.com/graphql)
-            echo "QUERY($i): $RESP"
-            PKGID=$(echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); ns=d.get('data',{}).get('repository',{}).get('packages',{}).get('nodes',[]); print([n['id'] for n in ns if 'cloudlink' in n['name'].lower()][0])" 2>/dev/null)
-            if [ -n "$PKGID" ]; then
-              M=$(printf '{"query":"mutation{updatePackageVisibility(input:{packageId:\"%s\",visibility:PUBLIC}){package{id name}}}"}' "$PKGID")
-              echo "MUTATE: $(curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" -d "$M" https://api.github.com/graphql)"
-              break
-            fi
-            echo "  package not found yet, retry $i in 10s..."
-            sleep 10
-          done
+          echo "===== REST /user/packages ====="
+          curl -s -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/user/packages?package_type=container&per_page=50" | tee /tmp/pkgs.json
+          PKGID=$(python3 -c "import json; d=json.load(open('/tmp/pkgs.json')); print([p['id'] for p in d if 'cloudlink' in p['name'].lower()][0])" 2>/dev/null)
+          echo "PKGID=$PKGID"
+          if [ -n "$PKGID" ]; then
+            echo "===== try PATCH /user/packages/$PKGID ====="
+            curl -s -X PATCH -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -H "Content-Type: application/json" -d '{"visibility":"public"}' "https://api.github.com/user/packages/$PKGID" | head -c 400
+            echo ""
+            echo "===== try GraphQL updatePackageVisibility ====="
+            M=$(printf '{"query":"mutation{updatePackageVisibility(input:{packageId:\"%s\",visibility:PUBLIC}){package{id name}}}"}' "$PKGID")
+            curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" -d "$M" https://api.github.com/graphql
+            echo ""
+          else
+            echo "NO PACKAGE FOUND in REST listing"
+          fi
