@@ -7,38 +7,27 @@ jobs:
   setpublic:
     runs-on: ubuntu-latest
     steps:
-      - name: Diagnose + set public
+      - name: Set GHCR package public
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "===== viewer ====="
-          curl -s -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/user | python3 -c "import sys,json;d=json.load(sys.stdin);print('login=',d.get('login'),'type=',d.get('type'))"
-          echo "===== REST /user/packages (no param) ====="
-          curl -s -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/user/packages?per_page=50" -o /tmp/u.json
-          python3 -c "import json;d=json.load(open('/tmp/u.json'));print('COUNT',len(d) if isinstance(d,list) else d);[print(p.get('id'),p.get('name'),p.get('visibility'),p.get('repository',{}).get('full_name')) for p in d] if isinstance(d,list) else print(d)"
-          echo "===== REST /repos/hyevan/cloudlink-finder/packages ====="
-          curl -s -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/hyevan/cloudlink-finder/packages?per_page=50" -o /tmp/r.json
-          python3 -c "import json;d=json.load(open('/tmp/r.json'));print('COUNT',len(d) if isinstance(d,list) else d);[print(p.get('id'),p.get('name'),p.get('visibility')) for p in d] if isinstance(d,list) else print(d)"
-          PKGID=$(python3 -c "
-import json
-for f in ['/tmp/u.json','/tmp/r.json']:
-    try:
-        d=json.load(open(f))
-        if isinstance(d,list):
-            for p in d:
-                if 'cloudlink' in str(p.get('name','')).lower():
-                    print(p['id']); break
-    except: pass
-" 2>/dev/null)
+          curl -s -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/user/packages?per_page=50" -o /tmp/u.json || true
+          echo "USER PACKAGES:"; cat /tmp/u.json || true
+          curl -s -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/hyevan/cloudlink-finder/packages?per_page=50" -o /tmp/r.json || true
+          echo "REPO PACKAGES:"; cat /tmp/r.json || true
+          PKGID=""
+          for f in /tmp/u.json /tmp/r.json; do
+            if [ -z "$PKGID" ]; then
+              PKGID=$(python3 -c "import json;d=json.load(open('$f'));print([p['id'] for p in d if 'cloudlink' in str(p.get('name','')).lower()][0])" 2>/dev/null) || true
+            fi
+          done
           echo "PKGID=$PKGID"
           if [ -n "$PKGID" ]; then
-            echo "===== PATCH /user/packages/$PKGID ====="
-            curl -s -X PATCH -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -H "Content-Type: application/json" -d '{"visibility":"public"}' "https://api.github.com/user/packages/$PKGID" | head -c 300
-            echo ""
-            echo "===== GraphQL updatePackageVisibility ====="
-            M=$(printf '{"query":"mutation{updatePackageVisibility(input:{packageId:\"%s\",visibility:PUBLIC}){package{id name}}}"}' "$PKGID")
-            curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" -d "$M" https://api.github.com/graphql
+            echo "PATCH /user/packages/$PKGID"
+            curl -s -X PATCH -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -H "Content-Type: application/json" -d '{"visibility":"public"}' "https://api.github.com/user/packages/$PKGID" || true
             echo ""
           else
-            echo "NO PACKAGE ID FOUND"
+            echo "NO PKGID - GraphQL fallback"
+            Q='{"query":"query{repository(owner:\"hyevan\",name:\"cloudlink-finder\"){packages(first:20){nodes{id name}}}}"}'
+            echo "GRAPHQL: $(curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" -d "$Q" https://api.github.com/graphql)"
           fi
