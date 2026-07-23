@@ -1,4 +1,4 @@
-name: Build & Push to GHCR
+name: Set package public (diag)
 
 on:
   push:
@@ -10,40 +10,33 @@ permissions:
   packages: write
 
 jobs:
-  build:
+  setpublic:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: ghcr.io/${{ github.repository }}:latest
-
-      - name: List packages (diagnostic)
+      - name: Try visibility endpoints
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "=== GET /users/${{ github.actor }}/packages?package_type=container ==="
-          curl -s -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/users/${{ github.actor }}/packages?package_type=container" | head -c 2000
-          echo
-          echo "=== GET /repos/${{ github.repository }}/packages?package_type=container ==="
-          curl -s -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/packages?package_type=container" | head -c 2000
-          echo
+          echo "=== try multiple visibility endpoints ==="
+          eps=(
+            "https://api.github.com/user/packages/container/cloudlink-finder/visibility"
+            "https://api.github.com/users/hyevan/packages/container/cloudlink-finder/visibility"
+            "https://api.github.com/repos/hyevan/cloudlink-finder/packages/container/cloudlink-finder/visibility"
+            "https://api.github.com/repos/hyevan/cloudlink-finder/packages/container/hyevan%2Fcloudlink-finder/visibility"
+          )
+          for ep in "${eps[@]}"; do
+            echo "## EP: $ep"
+            code=$(curl -s -o /tmp/r.txt -w "%{http_code}" -X PATCH \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: application/json" \
+              -d '{"visibility":"public"}' "$ep")
+            echo "  HTTP $code | $(cat /tmp/r.txt)"
+            if [ "$code" = "204" ] || [ "$code" = "200" ]; then
+              echo ">>> SUCCESS: $ep"
+              echo "FINAL_OK"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "ALL_FAILED"
