@@ -1,4 +1,4 @@
-name: Set package public (diag)
+name: Build & Push to GHCR
 
 on:
   push:
@@ -10,33 +10,40 @@ permissions:
   packages: write
 
 jobs:
-  setpublic:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Try visibility endpoints
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        continue-on-error: true
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository }}:latest
+
+      - name: Set package public via GraphQL
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "=== try multiple visibility endpoints ==="
-          eps=(
-            "https://api.github.com/user/packages/container/cloudlink-finder/visibility"
-            "https://api.github.com/users/hyevan/packages/container/cloudlink-finder/visibility"
-            "https://api.github.com/repos/hyevan/cloudlink-finder/packages/container/cloudlink-finder/visibility"
-            "https://api.github.com/repos/hyevan/cloudlink-finder/packages/container/hyevan%2Fcloudlink-finder/visibility"
-          )
-          for ep in "${eps[@]}"; do
-            echo "## EP: $ep"
-            code=$(curl -s -o /tmp/r.txt -w "%{http_code}" -X PATCH \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              -H "Content-Type: application/json" \
-              -d '{"visibility":"public"}' "$ep")
-            echo "  HTTP $code | $(cat /tmp/r.txt)"
-            if [ "$code" = "204" ] || [ "$code" = "200" ]; then
-              echo ">>> SUCCESS: $ep"
-              echo "FINAL_OK"
-              exit 0
-            fi
-            sleep 3
-          done
-          echo "ALL_FAILED"
+          Q='{"query":"query{user(login:\"hyevan\"){packages(first:20,packageType:DOCKER){nodes{id name visibility}}}}"}'
+          RESP=$(curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" -d "$Q" https://api.github.com/graphql)
+          echo "QUERY: $RESP"
+          PKGID=$(echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); ns=d.get('data',{}).get('user',{}).get('packages',{}).get('nodes',[]); print([n['id'] for n in ns if 'cloudlink' in n['name'].lower()][0])")
+          echo "PKGID=$PKGID"
+          M=$(printf '{"query":"mutation{updatePackageVisibility(input:{packageId:\"%s\",visibility:PUBLIC}){package{id name visibility}}}"}' "$PKGID")
+          echo "MUTATE: $(curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" -d "$M" https://api.github.com/graphql)"
