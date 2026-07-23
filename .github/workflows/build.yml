@@ -35,26 +35,29 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository }}:latest
 
-      - name: Make package public
+      - name: Diagnose + set public
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ok=0
-          for i in $(seq 1 8); do
-            code=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
-              -X PATCH \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              -H "Content-Type: application/json" \
-              -d '{"visibility":"public"}' \
-              "https://api.github.com/users/${{ github.actor }}/packages/container/cloudlink-finder/visibility")
-            echo "attempt $i -> HTTP $code"
-            cat /tmp/resp.txt; echo
-            if [ "$code" = "204" ] || [ "$code" = "200" ]; then
-              ok=1; echo "package set to public"; break
-            fi
-            sleep 12
+          echo "### Package visibility diagnostic" >> $GITHUB_STEP_SUMMARY
+          for ep in \
+            "https://api.github.com/users/${{ github.actor }}/packages/container/cloudlink-finder/visibility" \
+            "https://api.github.com/repos/${{ github.repository }}/packages/container/cloudlink-finder/visibility" ; do
+            echo "## Endpoint: $ep" >> $GITHUB_STEP_SUMMARY
+            for i in 1 2 3; do
+              code=$(curl -s -o /tmp/r.txt -w "%{http_code}" -X PATCH \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                -H "Content-Type: application/json" \
+                -d '{"visibility":"public"}' "$ep")
+              body=$(cat /tmp/r.txt)
+              echo "- attempt $i: HTTP $code | body: $body" >> $GITHUB_STEP_SUMMARY
+              if [ "$code" = "204" ] || [ "$code" = "200" ]; then
+                echo "**SUCCESS on $ep**" >> $GITHUB_STEP_SUMMARY
+                exit 0
+              fi
+              sleep 8
+            done
           done
-          if [ "$ok" != "1" ]; then
-            echo "FAILED to set package public"; exit 1
-          fi
+          echo "**ALL ENDPOINTS FAILED**" >> $GITHUB_STEP_SUMMARY
+          exit 1
