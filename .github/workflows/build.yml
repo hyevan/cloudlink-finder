@@ -40,10 +40,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          Q='{"query":"query{user(login:\"hyevan\"){packages(first:20,packageType:DOCKER){nodes{id name visibility}}}}"}'
+          Q='{"query":"query{user(login:\"hyevan\"){packages(first:20,packageType:DOCKER){nodes{id name}}}}"}'
           RESP=$(curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" -d "$Q" https://api.github.com/graphql)
           echo "QUERY: $RESP"
-          PKGID=$(echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); ns=d.get('data',{}).get('user',{}).get('packages',{}).get('nodes',[]); print([n['id'] for n in ns if 'cloudlink' in n['name'].lower()][0])")
+          PKGID=$(echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); ns=d['data']['user']['packages']['nodes']; print([n['id'] for n in ns if 'cloudlink' in n['name'].lower()][0])")
           echo "PKGID=$PKGID"
-          M=$(printf '{"query":"mutation{updatePackageVisibility(input:{packageId:\"%s\",visibility:PUBLIC}){package{id name visibility}}}"}' "$PKGID")
+          M=$(printf '{"query":"mutation{updatePackageVisibility(input:{packageId:\"%s\",visibility:PUBLIC}){package{id name}}}"}' "$PKGID")
           echo "MUTATE: $(curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" -d "$M" https://api.github.com/graphql)"
