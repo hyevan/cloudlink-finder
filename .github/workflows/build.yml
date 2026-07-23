@@ -39,16 +39,22 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          for i in 1 2 3 4 5 6; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" \
+          ok=0
+          for i in $(seq 1 8); do
+            code=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
               -X PATCH \
               -H "Authorization: Bearer $GH_TOKEN" \
               -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: application/json" \
               -d '{"visibility":"public"}' \
               "https://api.github.com/users/${{ github.actor }}/packages/container/cloudlink-finder/visibility")
             echo "attempt $i -> HTTP $code"
+            cat /tmp/resp.txt; echo
             if [ "$code" = "204" ] || [ "$code" = "200" ]; then
-              echo "package set to public"; break
+              ok=1; echo "package set to public"; break
             fi
             sleep 12
           done
+          if [ "$ok" != "1" ]; then
+            echo "FAILED to set package public"; exit 1
+          fi
